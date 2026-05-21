@@ -18,10 +18,7 @@ Rules:
 - Match patterns found in high-performing competitor titles
 - Each title should feel like it belongs in the top 10 search results for its keyword
 
-Return STRICT JSON: an array of 5 objects:
-{ "title": string, "keyword_used": string, "angle": string, "reasoning": string, "opportunity_score": number }
-
-Wrap in an object like {"titles": [...]} if your output requires a root object.`;
+Output: a JSON object {"titles": [...]} containing EXACTLY 5 title objects. Every schema field is required — never leave a string blank, use a short value if needed.`;
 
   const user = `Original concept: ${input.concept}
 User instructions: ${input.instructions || "(none)"}
@@ -48,29 +45,67 @@ Generate 5 distinct titles. Return strict JSON.`;
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      response_format: { type: "json_object" },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "title_generation",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["titles"],
+            properties: {
+              titles: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: [
+                    "title",
+                    "keyword_used",
+                    "angle",
+                    "reasoning",
+                    "opportunity_score",
+                  ],
+                  properties: {
+                    title: { type: "string" },
+                    keyword_used: { type: "string" },
+                    angle: { type: "string" },
+                    reasoning: { type: "string" },
+                    opportunity_score: { type: "number" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     { signal }
   );
   if (tracker && res.usage) tracker.record("Step 6 — Final title generation", MINI_MODEL, res.usage);
-  const raw = res.choices[0]?.message?.content ?? "[]";
+  const raw = res.choices[0]?.message?.content ?? "{}";
   const parsed = parseJSON<unknown>(raw);
   let arr: unknown[] = [];
-  if (Array.isArray(parsed)) arr = parsed;
-  else if (parsed && typeof parsed === "object") {
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     const obj = parsed as Record<string, unknown>;
-    for (const v of Object.values(obj)) {
-      if (Array.isArray(v)) {
-        arr = v;
-        break;
+    if (Array.isArray(obj.titles)) arr = obj.titles;
+    else {
+      for (const v of Object.values(obj)) {
+        if (Array.isArray(v)) {
+          arr = v;
+          break;
+        }
       }
     }
+  } else if (Array.isArray(parsed)) {
+    arr = parsed;
   }
   return arr
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const o = item as Record<string, unknown>;
-      const title = typeof o.title === "string" ? o.title : null;
+      const title = typeof o.title === "string" ? o.title.trim() : "";
       if (!title) return null;
       return {
         title,

@@ -30,19 +30,7 @@ Also identify title patterns from top performing videos:
 - question vs statement format
 - number usage patterns
 
-Return STRICT JSON of shape:
-{
-  "scored": [{"keyword": "...", "score": 7, "reasoning": "..."}],
-  "shortlist": ["kw1","kw2","kw3"],
-  "patterns": {
-    "sentenceStructures": ["..."],
-    "emotionalTriggers": ["..."],
-    "formatMix": "...",
-    "numberUsage": "..."
-  }
-}
-
-shortlist must contain exactly 3 keywords (the top opportunities).`;
+shortlist must contain exactly 3 keywords (the top opportunities). All schema fields are required — if you have nothing to say for a string field use a short summary, never leave it blank.`;
 
   const compBlock = competition
     ? competition
@@ -88,21 +76,78 @@ Return strict JSON.`;
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      response_format: { type: "json_object" },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "opportunity_scoring",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["scored", "shortlist", "patterns"],
+            properties: {
+              scored: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["keyword", "score", "reasoning"],
+                  properties: {
+                    keyword: { type: "string" },
+                    score: { type: "number" },
+                    reasoning: { type: "string" },
+                  },
+                },
+              },
+              shortlist: { type: "array", items: { type: "string" } },
+              patterns: {
+                type: "object",
+                additionalProperties: false,
+                required: [
+                  "sentenceStructures",
+                  "emotionalTriggers",
+                  "formatMix",
+                  "numberUsage",
+                ],
+                properties: {
+                  sentenceStructures: { type: "array", items: { type: "string" } },
+                  emotionalTriggers: { type: "array", items: { type: "string" } },
+                  formatMix: { type: "string" },
+                  numberUsage: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     { signal }
   );
   if (tracker && res.usage) tracker.record("Step 5 — Opportunity scoring", MINI_MODEL, res.usage);
   const raw = res.choices[0]?.message?.content ?? "{}";
   const parsed = parseJSON<Partial<ScoringResult>>(raw);
+  const scored = Array.isArray(parsed.scored)
+    ? parsed.scored.filter(
+        (s): s is ScoringResult["scored"][number] =>
+          !!s && typeof s === "object" && typeof s.keyword === "string"
+      )
+    : [];
+  const shortlist = Array.isArray(parsed.shortlist)
+    ? parsed.shortlist.filter((s): s is string => typeof s === "string").slice(0, 3)
+    : [];
+  const p = (parsed.patterns ?? {}) as Partial<ScoringResult["patterns"]>;
   return {
-    scored: Array.isArray(parsed.scored) ? parsed.scored : [],
-    shortlist: Array.isArray(parsed.shortlist) ? parsed.shortlist.slice(0, 3) : [],
-    patterns: parsed.patterns ?? {
-      sentenceStructures: [],
-      emotionalTriggers: [],
-      formatMix: "",
-      numberUsage: "",
+    scored,
+    shortlist,
+    patterns: {
+      sentenceStructures: Array.isArray(p.sentenceStructures)
+        ? p.sentenceStructures.filter((x): x is string => typeof x === "string")
+        : [],
+      emotionalTriggers: Array.isArray(p.emotionalTriggers)
+        ? p.emotionalTriggers.filter((x): x is string => typeof x === "string")
+        : [],
+      formatMix: typeof p.formatMix === "string" ? p.formatMix : "",
+      numberUsage: typeof p.numberUsage === "string" ? p.numberUsage : "",
     },
   };
 }

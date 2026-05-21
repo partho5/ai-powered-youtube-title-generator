@@ -5,13 +5,28 @@ import { QuotaExceededError, step4Competition } from "./step4-competition";
 import { step5Scoring } from "./step5-scoring";
 import { step6Titles } from "./step6-titles";
 import { CostTracker } from "./cost";
-import type { ResearchInput, StepEvent } from "./types";
+import { logError } from "../log";
+import type { ResearchInput, StepEvent, StepName } from "./types";
 
 export async function* runPipeline(
   input: ResearchInput,
   signal: AbortSignal
 ): AsyncGenerator<StepEvent> {
   const tracker = new CostTracker();
+  const logStepError = (step: StepName, label: string, err: unknown, extra?: Record<string, unknown>) => {
+    logError({
+      step,
+      message: `${label} failed`,
+      error: err,
+      details: {
+        concept: input.concept,
+        instructions: input.instructions,
+        countryCode: input.countryCode,
+        languageCode: input.languageCode,
+        ...extra,
+      },
+    });
+  };
   // --- Step 1
   yield { kind: "step_start", step: "keywords", label: "Step 1 — Keyword expansion" };
   let keywords: string[] = [];
@@ -27,6 +42,7 @@ export async function* runPipeline(
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    logStepError("keywords", "Step 1 — Keyword expansion", err, { keywordsReturned: keywords.length });
     yield {
       kind: "step_error",
       step: "keywords",
@@ -48,6 +64,11 @@ export async function* runPipeline(
       suggestWarn = `${r.failedQueries}/${r.totalQueries} autocomplete queries returned no data`;
     }
     if (suggestions.length === 0) {
+      logStepError("suggest", "Step 2 — YouTube Autocomplete", "no suggestions collected", {
+        totalQueries: r.totalQueries,
+        failedQueries: r.failedQueries,
+        keywords,
+      });
       yield {
         kind: "step_error",
         step: "suggest",
@@ -67,6 +88,7 @@ export async function* runPipeline(
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    logStepError("suggest", "Step 2 — YouTube Autocomplete", err, { keywords });
     yield {
       kind: "step_error",
       step: "suggest",
@@ -102,6 +124,7 @@ export async function* runPipeline(
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    logStepError("trends", "Step 3 — Google Trends validation", err, { suggestionsCount: suggestions.length });
     yield {
       kind: "step_done",
       step: "trends",
@@ -167,6 +190,7 @@ export async function* runPipeline(
       competition = { skipped: true, reason: "quota exceeded" };
     } else {
       const msg = err instanceof Error ? err.message : String(err);
+      logStepError("competition", "Step 4 — Competition (YouTube Data API)", err);
       yield {
         kind: "step_done",
         step: "competition",
@@ -199,6 +223,7 @@ export async function* runPipeline(
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    logStepError("scoring", "Step 5 — Opportunity scoring", err);
     yield {
       kind: "step_error",
       step: "scoring",
@@ -227,6 +252,7 @@ export async function* runPipeline(
     yield { kind: "final", titles };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    logStepError("titles", "Step 6 — Final title generation", err);
     yield {
       kind: "step_error",
       step: "titles",

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { runPipeline } from "@/lib/pipeline/runner";
 import type { ResearchInput, StepEvent } from "@/lib/pipeline/types";
 import { findCountry } from "@/lib/countries";
+import { logError } from "@/lib/log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,6 +79,16 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        logError({
+          step: "pipeline",
+          message: "Unhandled pipeline error",
+          error: err,
+          details: {
+            concept: input.concept,
+            countryCode: input.countryCode,
+            languageCode: input.languageCode,
+          },
+        });
         send({
           kind: "step_error",
           step: "keywords",

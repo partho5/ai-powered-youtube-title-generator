@@ -42,6 +42,7 @@ export default function ResearchForm({ countries }: Props) {
   const [titles, setTitles] = useState<FinalTitle[] | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
+  const [exportFormat, setExportFormat] = useState<"csv">("csv");
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -189,6 +190,38 @@ export default function ResearchForm({ countries }: Props) {
     abortRef.current?.abort();
   }
 
+  function downloadCsv() {
+    if (!titles || titles.length === 0) return;
+    const headers = ["title", "keyword_used", "angle", "opportunity_score", "reasoning"];
+    const escape = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = titles.map((t) =>
+      [t.title, t.keyword_used, t.angle, t.opportunity_score, t.reasoning].map(escape).join(",")
+    );
+    const csv = "﻿" + [headers.join(","), ...rows].join("\r\n");
+    const top = [...titles].sort((a, b) => (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0))[0];
+    const base = (top?.title || "youtube-titles")
+      .replace(/[\\/:*?"<>|\x00-\x1F]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120) || "youtube-titles";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${base}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function onExport() {
+    if (exportFormat === "csv") downloadCsv();
+  }
+
   return (
     <div className="space-y-6">
       <form
@@ -316,9 +349,29 @@ export default function ResearchForm({ countries }: Props) {
 
       {titles && titles.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-yt-muted uppercase tracking-wide">
-            Suggested titles
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-yt-muted uppercase tracking-wide">
+              Suggested titles
+            </h2>
+            {!running && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onExport}
+                  className="px-3 py-1.5 bg-yt-red hover:bg-yt-redHover text-white rounded-full font-medium text-xs transition"
+                >
+                  Export
+                </button>
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value as "csv")}
+                  className="px-2 py-1.5 bg-white border border-yt-border rounded-md text-xs focus:outline-none focus:border-yt-red focus:ring-1 focus:ring-yt-red"
+                >
+                  <option value="csv">CSV</option>
+                </select>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 gap-3">
             {titles.map((t, i) => (
               <TitleCard key={i} title={t} />
