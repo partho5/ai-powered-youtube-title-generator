@@ -391,7 +391,6 @@ export default function ResearchForm({ countries }: Props) {
                 <th className="text-left pb-1.5 pr-3 font-medium">Step</th>
                 <th className="text-left pb-1.5 pr-3 font-medium">Model</th>
                 <th className="text-right pb-1.5 pr-3 font-medium">Input</th>
-                <th className="text-right pb-1.5 pr-3 font-medium">Cached</th>
                 <th className="text-right pb-1.5 pr-3 font-medium">Output</th>
                 <th className="text-right pb-1.5 font-medium">Cost (USD)</th>
               </tr>
@@ -402,7 +401,6 @@ export default function ResearchForm({ countries }: Props) {
                   <td className="py-1.5 pr-3 text-yt-text">{e.step}</td>
                   <td className="py-1.5 pr-3 text-yt-muted font-mono">{e.model}</td>
                   <td className="py-1.5 pr-3 text-right tabular-nums">{e.inputTokens.toLocaleString()}</td>
-                  <td className="py-1.5 pr-3 text-right tabular-nums text-yt-muted">{e.cachedInputTokens.toLocaleString()}</td>
                   <td className="py-1.5 pr-3 text-right tabular-nums">{e.outputTokens.toLocaleString()}</td>
                   <td className="py-1.5 text-right tabular-nums font-medium">${e.costUsd.toFixed(6)}</td>
                 </tr>
@@ -412,15 +410,14 @@ export default function ResearchForm({ countries }: Props) {
               <tr className="text-yt-text font-semibold border-t-2 border-yt-border">
                 <td colSpan={2} className="pt-2 pr-3">Total</td>
                 <td className="pt-2 pr-3 text-right tabular-nums">{costSummary.totalInputTokens.toLocaleString()}</td>
-                <td className="pt-2 pr-3 text-right tabular-nums text-yt-muted">{costSummary.totalCachedInputTokens.toLocaleString()}</td>
                 <td className="pt-2 pr-3 text-right tabular-nums">{costSummary.totalOutputTokens.toLocaleString()}</td>
                 <td className="pt-2 text-right tabular-nums text-yt-red">${costSummary.totalCostUsd.toFixed(6)}</td>
               </tr>
             </tfoot>
           </table>
           <p className="text-xs text-yt-muted">
-            Nano: $0.05/$0.005/$0.40 per 1M in/cached/out &nbsp;·&nbsp;
-            Mini: $0.25/$0.025/$2.00 per 1M in/cached/out
+            Nano: $0.05/$0.40 per 1M in/out &nbsp;·&nbsp;
+            Mini: $0.25/$2.00 per 1M in/out
           </p>
         </section>
       )}
